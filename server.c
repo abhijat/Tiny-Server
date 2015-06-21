@@ -10,10 +10,9 @@
 
 const char* welcome_msg = "Welcome to a tiny server";
 
-void error(char* msg)
+void usage(const char* pname)
 {
-    perror(msg);
-    exit(1);
+    fprintf(stderr, "usage: %s <port>\n", pname);
 }
 
 void show_peer_address(const struct sockaddr_in* peer)
@@ -64,16 +63,25 @@ void read_request_headers(int clientfd)
     return;
 }
 
+void init_server_socket(struct sockaddr_in* ss, int port)
+{
+    bzero( (char*) ss, sizeof(*ss) );
+    ss->sin_family = AF_INET;
+    ss->sin_addr.s_addr = INADDR_ANY;
+    ss->sin_port = htons(port);
+}
+
 int main(int argc, char* argv[])
 {
+    if (argc != 2) {
+        usage(argv[0]);
+        return 1;
+    }
+
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     struct sockaddr_in serv_addr;
-    bzero( (char*) &serv_addr, sizeof(serv_addr) );
-    
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(9999);
+    init_server_socket(&serv_addr, atoi(argv[1]));
 
     int yes = 1;
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
