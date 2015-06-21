@@ -8,6 +8,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+#include "strings.h"
+
 const char* welcome_msg = "Welcome to a tiny server";
 
 void usage(const char* pname)
@@ -71,6 +73,19 @@ void init_server_socket(struct sockaddr_in* ss, int port)
     ss->sin_port = htons(port);
 }
 
+void set_reusable(int sockfd)
+{
+    int yes = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+}
+
+char* build_response()
+{
+    char* response = malloc(sizeof(char) * (strlen(http_ok) + strlen(welcome_msg)));
+    sprintf(response, http_ok, strlen(welcome_msg), welcome_msg);
+    return response;
+}
+
 int main(int argc, char* argv[])
 {
     if (argc != 2) {
@@ -83,8 +98,7 @@ int main(int argc, char* argv[])
     struct sockaddr_in serv_addr;
     init_server_socket(&serv_addr, atoi(argv[1]));
 
-    int yes = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    set_reusable(sockfd);
 
     bind(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
     listen(sockfd, 5);
@@ -94,11 +108,12 @@ int main(int argc, char* argv[])
 
     for (;;) {
         unsigned cli_fd = accept(sockfd, (struct sockaddr*) &cli_addr, &cli_len);
-        //show_peer_address(&cli_addr);
-
         read_request_headers(cli_fd);
-        
-        write(cli_fd, welcome_msg, strlen(welcome_msg));
+
+        char* response = build_response();
+        write(cli_fd, response, strlen(response));
+        free(response);
+
         close(cli_fd);
     }
 
