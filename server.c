@@ -10,7 +10,7 @@
 
 #include "strings.h"
 
-const char* welcome_msg = "Welcome to a tiny server";
+char* file_to_str(const char* path);
 
 void usage(const char* pname)
 {
@@ -28,12 +28,12 @@ void parse_header(const char* header_string)
 {
     char* pos = strchr(header_string, ':');
     char* key = strndup(header_string, pos - header_string);
-    if (key && pos)
-        printf("%s is %s\n", key, pos + 2);
+    //if (key && pos)
+    //    printf("%s is %s\n", key, pos + 2);
     free(key);
 }
 
-void process_request(const char* request)
+char* process_request(const char* request)
 {
     char* req = strdup(request);
     const char* ws = " \t";
@@ -42,11 +42,15 @@ void process_request(const char* request)
     char* method = strtok_r(req, ws, &ctx);
     char* path = strtok_r(NULL, ws, &ctx);
 
+    char* ret = strdup(path);
+
     printf("Method %s on path %s\n", method, path);
     free(req);
+
+    return ret;
 }
 
-void read_request_headers(int clientfd)
+char* read_request_headers(int clientfd)
 {
     char request[512];
     read(clientfd, &request, sizeof request - 1);
@@ -56,13 +60,26 @@ void read_request_headers(int clientfd)
 
     char* line = strtok_r(request, sep, &ctx);
 
-    process_request(line);
+    char* r = process_request(line);
 
     while (line != NULL && strlen(line) > 0) {
         parse_header(line);
         line = strtok_r(NULL, sep, &ctx);
     }
-    return;
+    return r;
+}
+
+char* response(const char* req)
+{
+    char* response;
+    if (req[0] != '/') {
+        response = strdup("error, incorrect filename");
+    } else if (strcmp(req, "/") == 0) {
+        response = strdup(welcome_msg);
+    } else {
+        response = file_to_str(req + 1);
+    }
+    return response;
 }
 
 void init_server_socket(struct sockaddr_in* ss, int port)
@@ -79,11 +96,37 @@ void set_reusable(int sockfd)
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 }
 
-char* build_response()
+char* build_response(char* content)
 {
-    char* response = malloc(sizeof(char) * (strlen(http_ok) + strlen(welcome_msg)));
-    sprintf(response, http_ok, strlen(welcome_msg), welcome_msg);
+    char* response = malloc(sizeof(char) * (strlen(http_ok) + strlen(content)));
+    sprintf(response, http_ok, strlen(content), content);
     return response;
+}
+
+char* prettify(char* str)
+{
+    size_t len = strlen(str);
+    size_t newlines = 0;
+
+    for (size_t i = 0; i <= len; ++i) {
+        if (str[i] == '\n') ++newlines;
+    }
+
+    char* p = (char*) malloc(sizeof(char) * (len + (3 * newlines)));
+
+    size_t j = 0;
+    for (size_t i = 0; i <= len; ++i) {
+        if (str[i] == '\n') {
+            p[j++] = '<';
+            p[j++] = 'b';
+            p[j++] = 'r';
+            p[j++] = '>';
+        } else {
+            p[j++] = str[i];
+        }
+    }
+    p[j] = 0;
+    return p;
 }
 
 int main(int argc, char* argv[])
@@ -108,12 +151,17 @@ int main(int argc, char* argv[])
 
     for (;;) {
         unsigned cli_fd = accept(sockfd, (struct sockaddr*) &cli_addr, &cli_len);
-        read_request_headers(cli_fd);
+        char* r = read_request_headers(cli_fd);
+        char* resp = response(r);
+        free(r);
+       
+        char* p = prettify(resp);
+        free(resp);
 
-        char* response = build_response();
+        char* response = build_response(p);
         write(cli_fd, response, strlen(response));
-        free(response);
 
+        free(response);
         close(cli_fd);
     }
 

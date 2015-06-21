@@ -7,4 +7,6 @@ const char* http_ok =
     "Content-length: %d\r\n"
     "\r\n%s";
 
+const char* welcome_msg = "Welcome to a tiny server";
+
 #endif
